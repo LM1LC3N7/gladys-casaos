@@ -1,177 +1,137 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "CasaOS",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Your CasaOS server: CPU, memory, disks, temperatures, apps; start and stop an app.",
+    "fr": "Votre serveur CasaOS : CPU, mémoire, disques, températures, applis ; démarrer, arrêter."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-casaos:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-casaos/main/cover.png",
+  "categories": ["servers"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "How it works",
+        "fr": "Fonctionnement"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Gladys reads your CasaOS server through its local API, with a CasaOS account: CPU, memory, system disk, temperatures, and the installed apps, each one a device (Discovery tab) with start and stop buttons. The app running Gladys is never offered. Stopping an app is off by default. Tested against CasaOS 0.4.15 in a container. Never tested with a real device (a real CasaOS box); ZimaOS not verified. Unofficial integration, not affiliated with IceWhale.",
+        "fr": "Gladys lit votre serveur CasaOS par son API locale, avec un compte CasaOS : CPU, mémoire, disque système, températures, et les applications installées, chacune un appareil (onglet Découverte) avec des boutons démarrer et arrêter. L'application qui fait tourner Gladys n'est jamais proposée. Arrêter une application est désactivé par défaut. Testé avec CasaOS 0.4.15 en conteneur. Jamais testé avec un vrai appareil (une vraie machine CasaOS) ; ZimaOS non vérifié. Intégration non officielle, sans lien avec IceWhale."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/IceWhaleTech/CasaOS",
+          "label": {
+            "en": "CasaOS on GitHub",
+            "fr": "CasaOS sur GitHub"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "url",
+      "type": "string",
+      "label": {
+        "en": "CasaOS address",
+        "fr": "Adresse de CasaOS"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The address you open CasaOS with: http://<IP>, with :port when it is not 80. https:// only behind a reverse proxy with a certificate of a known authority. No path.",
+        "fr": "L'adresse avec laquelle vous ouvrez CasaOS : http://<IP>, avec :port s'il n'est pas 80. https:// seulement derrière un proxy inverse avec un certificat d'une autorité reconnue. Sans chemin."
+      },
+      "placeholder": {
+        "en": "e.g. http://192.168.1.20",
+        "fr": "ex. http://192.168.1.20"
+      },
+      "required": true
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "username",
+      "type": "string",
+      "label": {
+        "en": "User name",
+        "fr": "Nom d'utilisateur"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "A CasaOS account (CasaOS has one account per server: yours).",
+        "fr": "Un compte CasaOS (CasaOS a un compte par serveur : le vôtre)."
+      },
+      "required": true
     },
     {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password",
+        "fr": "Mot de passe"
+      },
+      "description": {
+        "en": "Kept by Gladys in its database, never shown again, sent only to CasaOS, at login (once, then the session is renewed without it). Over http:// it crosses your local network in clear, as with the CasaOS page itself.",
+        "fr": "Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à CasaOS, à la connexion (une fois, puis la session est renouvelée sans lui). En http:// il traverse votre réseau local en clair, comme avec la page de CasaOS elle-même."
+      },
+      "required": true
+    },
+    {
+      "key": "poll_interval",
+      "type": "number",
+      "label": {
+        "en": "Refresh (seconds)",
+        "fr": "Rafraîchissement (secondes)"
+      },
+      "description": {
+        "en": "How often Gladys reads CasaOS (system values and apps; the disks every 5 minutes). 30 to 3600 seconds.",
+        "fr": "Fréquence de lecture de CasaOS (valeurs du système et applications ; les disques toutes les 5 minutes). De 30 à 3600 secondes."
+      },
       "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
-      "required": false,
-      "default": 300,
-      "min": 60,
+      "default": 60,
+      "min": 30,
       "max": 3600
+    },
+    {
+      "key": "control_section",
+      "type": "section",
+      "label": {
+        "en": "Stopping apps",
+        "fr": "Arrêt des applications"
+      },
+      "description": {
+        "en": "Starting an app needs no option. Stopping one can cut a service of the house (a database, an MQTT broker, a camera recorder Gladys uses): it is off until you tick the box below. The app running Gladys is never started nor stopped from Gladys.",
+        "fr": "Démarrer une application ne demande aucune option. En arrêter une peut couper un service de la maison (une base de données, un broker MQTT, un enregistreur de caméras utilisé par Gladys) : c'est désactivé tant que vous ne cochez pas la case ci-dessous. L'application qui fait tourner Gladys n'est jamais démarrée ni arrêtée depuis Gladys."
+      }
+    },
+    {
+      "key": "allow_app_stop",
+      "type": "boolean",
+      "label": {
+        "en": "Allow stopping apps",
+        "fr": "Permettre d'arrêter les applications"
+      },
+      "description": {
+        "en": "On: the Stop button of an app device stops the app (checked again just before the command is sent).",
+        "fr": "Activé : le bouton Arrêter d'un appareil application arrête l'application (revérifié juste avant l'envoi de la commande)."
+      },
+      "required": false,
+      "default": false
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion"
+      },
+      "description": {
+        "en": "Reads CasaOS, again only when the last read is older than the refresh (otherwise it tells the last result). While the user name or password is refused, it tries them again (CasaOS accepts one login a minute).",
+        "fr": "Lit CasaOS, de nouveau seulement quand la dernière lecture est plus ancienne que le rafraîchissement (sinon il donne le dernier résultat). Tant que l'utilisateur ou le mot de passe est refusé, il les réessaie (CasaOS accepte une connexion par minute)."
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
     }
   ]
 }

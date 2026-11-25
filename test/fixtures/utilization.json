@@ -1,0 +1,31 @@
+{
+  "success": 200,
+  "message": "ok",
+  "data": {
+    "cpu": {
+      "model": "intel",
+      "num": 6,
+      "percent": 10.3,
+      "power": {
+        "timestamp": "1795604904",
+        "value": "0"
+      },
+      "temperature": 0
+    },
+    "mem": {
+      "available": 584073216,
+      "free": 187043840,
+      "total": 3890974720,
+      "used": 2796163072,
+      "usedPercent": 71.9
+    },
+    "net": [],
+    "sys_disk": {
+      "avail": 20568641536,
+      "health": true,
+      "size": 67422650368,
+      "used": 44063072256
+    },
+    "sys_usb": []
+  }
+}

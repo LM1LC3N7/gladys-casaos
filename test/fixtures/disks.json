@@ -1,0 +1,42 @@
+{
+  "success": 200,
+  "message": "ok",
+  "data": {
+    "avail": [],
+    "disks": [
+      {
+        "name": "sda",
+        "size": 68719476736,
+        "model": "QEMU HARDDISK   ",
+        "health": "false",
+        "temperature": 0,
+        "disk_type": "SSD",
+        "need_format": false,
+        "serial": "",
+        "path": "/dev/sda",
+        "children_number": 3,
+        "children": [
+          {
+            "name": "sda1",
+            "size": 68585242112,
+            "format": "",
+            "supported": false
+          },
+          {
+            "name": "sda14",
+            "size": 3145728,
+            "format": "",
+            "supported": false
+          },
+          {
+            "name": "sda15",
+            "size": 130023424,
+            "format": "",
+            "supported": false
+          }
+        ],
+        "supported": false
+      }
+    ]
+  }
+}

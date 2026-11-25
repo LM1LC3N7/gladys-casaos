@@ -1,0 +1,168 @@
+{
+  "data": {
+    "duo": {
+      "compose": {
+        "name": "duo",
+        "networks": {
+          "default": {
+            "name": "duo_default",
+            "ipam": {},
+            "external": false
+          }
+        },
+        "services": {
+          "back": {
+            "command": null,
+            "container_name": "duo-back",
+            "entrypoint": null,
+            "image": "traefik/whoami:v1.10",
+            "networks": {
+              "default": null
+            },
+            "restart": "unless-stopped"
+          },
+          "front": {
+            "command": null,
+            "container_name": "duo-front",
+            "entrypoint": null,
+            "image": "traefik/whoami:v1.10",
+            "networks": {
+              "default": null
+            },
+            "restart": "unless-stopped"
+          }
+        },
+        "x-casaos": {
+          "architectures": ["amd64"],
+          "is_uncontrolled": false,
+          "main": "front",
+          "store_app_id": "duo",
+          "title": {
+            "en_us": "Duo test"
+          }
+        }
+      },
+      "is_uncontrolled": false,
+      "status": "running",
+      "store_info": {
+        "apps": {
+          "back": {
+            "devices": null,
+            "envs": null,
+            "image": "traefik/whoami:v1.10",
+            "ports": null,
+            "volumes": null
+          },
+          "front": {
+            "devices": null,
+            "envs": null,
+            "image": "traefik/whoami:v1.10",
+            "ports": null,
+            "volumes": null
+          }
+        },
+        "architectures": ["amd64"],
+        "author": "",
+        "category": "",
+        "description": null,
+        "developer": "",
+        "icon": "",
+        "index": "",
+        "is_uncontrolled": false,
+        "main": "front",
+        "port_map": "",
+        "scheme": "http",
+        "screenshot_link": null,
+        "store_app_id": "duo",
+        "tagline": null,
+        "thumbnail": "",
+        "tips": {
+          "before_install": null
+        },
+        "title": {
+          "en_us": "Duo test"
+        }
+      },
+      "update_available": false
+    },
+    "whoami": {
+      "compose": {
+        "name": "whoami",
+        "networks": {
+          "default": {
+            "name": "whoami_default",
+            "ipam": {},
+            "external": false
+          }
+        },
+        "services": {
+          "whoami": {
+            "command": null,
+            "container_name": "whoami",
+            "entrypoint": null,
+            "image": "traefik/whoami:v1.10",
+            "networks": {
+              "default": null
+            },
+            "ports": [
+              {
+                "target": 80,
+                "published": "18090",
+                "protocol": "tcp"
+              }
+            ],
+            "restart": "unless-stopped"
+          }
+        },
+        "x-casaos": {
+          "architectures": ["amd64"],
+          "author": "test",
+          "category": "Utilities",
+          "developer": "test",
+          "is_uncontrolled": false,
+          "main": "whoami",
+          "port_map": "18090",
+          "store_app_id": "whoami",
+          "title": {
+            "en_us": "Whoami test"
+          }
+        }
+      },
+      "is_uncontrolled": false,
+      "status": "running",
+      "store_info": {
+        "apps": {
+          "whoami": {
+            "devices": null,
+            "envs": null,
+            "image": "traefik/whoami:v1.10",
+            "ports": null,
+            "volumes": null
+          }
+        },
+        "architectures": ["amd64"],
+        "author": "test",
+        "category": "Utilities",
+        "description": null,
+        "developer": "test",
+        "icon": "",
+        "index": "",
+        "is_uncontrolled": false,
+        "main": "whoami",
+        "port_map": "18090",
+        "scheme": "http",
+        "screenshot_link": null,
+        "store_app_id": "whoami",
+        "tagline": null,
+        "thumbnail": "",
+        "tips": {
+          "before_install": null
+        },
+        "title": {
+          "en_us": "Whoami test"
+        }
+      },
+      "update_available": false
+    }
+  }
+}
