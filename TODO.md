@@ -69,3 +69,7 @@ Handoff document: what is done, what was decided, what comes next.
   interval (and never within 30 s of the last read).
 - **CI**: `timeout-minutes` on every workflow (ci 15/20, release and github-release 30, build 60
   for the multi-arch QEMU build).
+
+## Next patch
+
+- Review minors: see `_lots/lot25/reviews/casaos-r2.md` (5 trous de test, `void publishRunning` sans catch, reprise après retour de /data jusqu a 60 s ; essai réel de la pile mixte à faire).
