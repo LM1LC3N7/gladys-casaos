@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-25
+
 ### Added
 
 - CasaOS server device: CPU (%), CPU temperature, memory (% and MB), system disk (% and GB free),
@@ -32,3 +34,6 @@ the notes of the version's GitHub Release.
   status after a configuration change; unknown values (update flag, memory without a total,
   counts) and stale disk temperatures never published; the Gladys app also recognized by
   service, container and host names; `timeout-minutes` on every workflow.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-casaos/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-casaos/releases/tag/v0.1.1
