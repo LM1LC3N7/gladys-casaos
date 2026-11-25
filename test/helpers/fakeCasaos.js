@@ -177,7 +177,15 @@ export async function fakeCasaos(options = {}) {
         send(res, 404, { message: `compose app \`${one[1]}\` not found` });
         return;
       }
+      if (!/application\/json/.test(req.headers.accept ?? '')) {
+        // CasaOS answers the compose YAML for any other Accept.
+        res.writeHead(200, { 'Content-Type': 'application/yaml' });
+        res.end(`name: ${a.id}\n`);
+        return;
+      }
       const { update_available: _drop, ...rest } = composeOf(a);
+      // The route of one app gives the status of the whole compose project.
+      rest.status = a.projectStatus ?? a.status;
       send(res, 200, { message: '!! JSON format is for debugging purpose only', data: rest });
       return;
     }
@@ -195,6 +203,7 @@ export async function fakeCasaos(options = {}) {
       srv.statusChanges.push([a.id, json]);
       const apply = () => {
         a.status = json === 'stop' ? 'exited' : 'running';
+        if (a.projectStatus) a.projectStatus = json === 'stop' ? 'exited(2)' : 'running(2)';
       };
       if (srv.applyDelayMs > 0) setTimeout(apply, srv.applyDelayMs);
       else if (srv.applyDelayMs === 0) apply();

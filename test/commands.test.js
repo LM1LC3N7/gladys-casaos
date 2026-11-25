@@ -78,7 +78,7 @@ test('beforeSend: the option turned off once the connection is up: nothing writt
       options = {
         ...options,
         beforeSend: () => {
-          ctx.app.config = { ...ctx.app.config, allowStop: false };
+          ctx.app.latest = { ...ctx.app.latest, allowStop: false };
           inner();
         },
       };
@@ -323,3 +323,117 @@ test('real clock: a scene on 5 slow apps (500-900 ms) sets them all within 3.5 s
 });
 
 const gladys0 = createFakeGladys();
+
+test('r1: the option unticked while the start queue is busy: stop refused at once', async (t) => {
+  const ctx = await setup(t, { config: ALLOW });
+  await online(ctx);
+  let release;
+  // A slow read or test holds the queue: the new configuration waits in it.
+  const held = ctx.app.enqueue(() => new Promise((r) => (release = r)));
+  const saved = ctx.app.configUpdated({ ...ctx.raw, allow_app_stop: false });
+  const ack = await press(ctx, 'jellyfin', 'stop');
+  assert.equal(ack.success, false);
+  assert.match(ack.error, /Stopping apps is off/);
+  assert.deepEqual(puts(ctx), []);
+  release();
+  await within(Promise.all([held, saved]), 'queue');
+});
+
+test('r1: another account saved while the queue is busy: commands refused', async (t) => {
+  const ctx = await setup(t);
+  await online(ctx);
+  let release;
+  const held = ctx.app.enqueue(() => new Promise((r) => (release = r)));
+  const saved = ctx.app.configUpdated({ ...ctx.raw, username: 'other' });
+  const ack = await press(ctx, 'nextcloud', 'start');
+  assert.match(ack.error, /configuration changed/);
+  assert.deepEqual(puts(ctx), []);
+  release();
+  await within(Promise.all([held, saved]), 'queue');
+});
+
+test('r1: a mixed compose project (one service stopped) is stopped, confirmed on the project', async (t) => {
+  const ctx = await setup(t, { config: ALLOW });
+  await online(ctx);
+  ctx.cs.apps.get('jellyfin').projectStatus = 'exited(1), running(1)';
+  const ack = await press(ctx, 'jellyfin', 'stop');
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(puts(ctx), ['stop jellyfin']);
+  assert.equal(stateOf(ctx, `${ctx.appId('jellyfin')}:running`), 0);
+});
+
+test('r1: a mixed compose project is started too; a paused one is refused', async (t) => {
+  const ctx = await setup(t, { config: ALLOW });
+  await online(ctx);
+  ctx.cs.apps.get('mosquitto').projectStatus = 'created(1), running(1)';
+  const ack = await press(ctx, 'mosquitto', 'start');
+  assert.equal(ack.success, true, ack.error);
+  assert.equal(ctx.cs.apps.get('mosquitto').projectStatus, 'running(2)');
+  ctx.cs.apps.get('jellyfin').projectStatus = 'exited(1), paused(1)';
+  const refused = await press(ctx, 'jellyfin', 'stop');
+  assert.match(refused.error, /neither running nor stopped/);
+  assert.deepEqual(puts(ctx), ['start mosquitto']);
+});
+
+test('r1: real clock, a publication to Gladys of 6 s never delays the ack (under 3.5 s)', async (t) => {
+  const cs = await fakeCasaos();
+  t.after(() => cs.close());
+  const clock = realClock({ speed: 1 });
+  t.after(() => clock.close());
+  const raw = { url: cs.url, username: USER, password: PASSWORD };
+  const gladys = createFakeGladys({ config: raw, devices: createdDevices(gladys0, cs.port) });
+  const logger = { debug() {}, info() {}, warn() {}, error() {} };
+  const app = new CasaosApp({
+    gladys,
+    logger,
+    store: memoryStore(),
+    now: clock.now,
+    mono: clock.monotonic,
+    timers: clock.timers,
+  });
+  registerHandlers(gladys, app, logger);
+  t.after(() => app.shutdown());
+  await within(gladys.connect(), 'connect');
+  await within(
+    (async () => {
+      while (!app.online) await new Promise((r) => setTimeout(r, 10));
+    })(),
+    'online',
+  );
+  const publish = gladys.publishChangedStates.bind(gladys);
+  const slow = [];
+  gladys.publishChangedStates = (states) => {
+    const p = new Promise((r) => {
+      const h = setTimeout(r, 6000);
+      slow.push(h);
+    }).then(() => publish(states));
+    return p;
+  };
+  t.after(() => slow.forEach((h) => clearTimeout(h)));
+  for (const [id, key] of [
+    ['nextcloud', 'start'],
+    ['jellyfin', 'start'],
+  ]) {
+    const started = performance.now();
+    const ack = await within(
+      gladys.fake.setValue(
+        { external_id: `ext:test-integration:app:${id}` },
+        { external_id: `ext:test-integration:app:${id}:${key}` },
+        1,
+      ),
+      'ack',
+    );
+    const took = performance.now() - started;
+    assert.equal(ack.success, true, ack.error);
+    assert.ok(took < 3500, `${id}: answered after ${Math.round(took)} ms`);
+  }
+});
+
+test('r1: a 5xx on the command says the state is read again, not "nothing done"', async (t) => {
+  const ctx = await setup(t);
+  await online(ctx);
+  ctx.cs.replyFor = (r) => (r.method === 'PUT' ? { status: 502, body: {} } : undefined);
+  const ack = await press(ctx, 'nextcloud', 'start');
+  assert.match(ack.error, /may have done part of it; the state of the app is read again/);
+  assert.doesNotMatch(ack.error, /Nothing/);
+});

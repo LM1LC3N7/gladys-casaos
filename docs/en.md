@@ -18,7 +18,7 @@ Unofficial integration, not affiliated with IceWhale (the makers of CasaOS and Z
   shown as 0 °C.
 - **Each app** (one device per app): running (yes / no), update available (yes / no), and the
   **Start** and **Stop** buttons. The app that runs Gladys itself (recognized by "gladys" in its
-  id, title or image name) is never offered.
+  id, title, service names, image, container or host name) is never offered.
 
 The values are read every minute by default (30 s to 1 h), the disks every 5 minutes.
 
@@ -39,7 +39,8 @@ The values are read every minute by default (30 s to 1 h), the disks every 5 min
 CasaOS accepts five logins, then **one login a minute, for all its clients** (your browser
 included). The integration logs in once, then renews its session with the refresh token CasaOS
 gives (no password). It does not log in twice within a minute, even across a restart of the
-integration (the time of the last login is written to `/data` before the login is sent).
+integration (the time of the last login is written to `/data` before the login is sent; when
+`/data` cannot be written, there is no login and the status says so).
 
 If CasaOS refuses the user name or the password, the integration stops and says so: nothing is
 tried again until you save the configuration or press **Test the connection**. The refusal is
@@ -57,15 +58,20 @@ remembered across restarts as a 6-bit mark (it can never tell the password).
 Each press reads the app first. The command is refused, and nothing is sent, when:
 
 - stopping is not allowed (Stop only);
-- the app is the one running Gladys (its id, title or image name holds "gladys");
-- the app is not installed any more, or CasaOS shows it neither running nor stopped (paused,
-  restarting);
+- the app is the one running Gladys (its id, title, a service name, image, container or host name
+  holds "gladys");
+- the app is not installed any more, or CasaOS shows one of its services paused, restarting or
+  in another state than running, exited, created or dead;
 - the user name or password was refused, CasaOS asked to wait (HTTP 429), the integration is not
   connected, or the configuration changed meanwhile;
 - another command of the same app is still running, or the previous one is still being applied;
 - the time left within the 5 s Gladys waits is too short.
 
-When the app is already in the state asked, nothing is sent and the press succeeds.
+When the app is already in the state asked, nothing is sent and the press succeeds. An app of
+several services with some running and some stopped is shown running; Start then aims at every
+service running, Stop at none running.
+
+The acknowledgement never waits for the states sent to Gladys.
 
 CasaOS applies a command in the background. The press succeeds only once a read shows the app
 in the state asked; otherwise Gladys is told "sent, without confirmation", and the app is read

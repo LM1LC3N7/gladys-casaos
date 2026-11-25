@@ -32,6 +32,13 @@ Handoff document: what is done, what was decided, what comes next.
   house; starting cannot. Neither is a switch. The app running Gladys (id, title or any image
   name containing "gladys", without case) is never offered, started nor stopped; a false match
   only hides an app.
+- **States of a compose app** (review r1): the list gives the main container (`running`), the
+  route of one app the whole project, one segment per state (`exited(1), running(1)`). All
+  running = running, all exited/created/dead = stopped, a mix of the two = mixed (shown
+  running, commandable both ways), anything else (paused, restarting) = unknown (refused).
+- **The stop option and the account** are read from `latest`, set when the configuration
+  arrives, outside the start queue (a slow read may hold it for 25 s).
+- **The ack never waits for the publication** to Gladys (`void publishRunning`).
 - **Success = a read shows the state asked.** CasaOS answers "being changed asynchronously": the
   app is read every 400 ms within the 3.5 s budget, then 5 s and 20 s after. A state equal to the
   one before is never a confirmation. Nothing is written later than 3.1 s after the press. One
@@ -39,7 +46,8 @@ Handoff document: what is done, what was decided, what comes next.
 - **Login spacing 60 s, across restarts.** CasaOS-UserService limits logins to 5 then one a minute
   for every client (the user's browser included): the integration logs in once, renews with the
   refresh token (no limit, no password), and keeps `lastLoginAt` in /data, written before the
-  login is sent. Tokens are never written to /data: a restart logs in again (once).
+  login is sent; not written, no login (status says so). Tokens are never written to /data: a
+  restart logs in again (once).
 - **Refusal** = HTTP 400 with `success` 10006 or 10013 on the login only. Any other 400, a 401 on
   a data route (even on a fresh token), a 403, an unreadable answer: errors, never a refusal.
   The refusal is kept as a 6-bit salted mark of address, user and password; a saved
@@ -59,5 +67,5 @@ Handoff document: what is done, what was decided, what comes next.
 - **Reads never sooner than the interval**: not on a reconnection to Gladys, a restart
   (`lastReadAt` in /data, written before the read), the Discovery, or the test button within the
   interval (and never within 30 s of the last read).
-- **CI**: `timeout-minutes` added to the jobs of `.github/workflows/ci.yml` (a hanging test never
-  holds a runner).
+- **CI**: `timeout-minutes` on every workflow (ci 15/20, release and github-release 30, build 60
+  for the multi-arch QEMU build).

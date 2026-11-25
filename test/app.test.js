@@ -336,3 +336,76 @@ test('nothing runs after shutdown (no timer, no request)', async (t) => {
   assert.equal(ctx.cs.requests.length, before);
   assert.equal(ctx.clock.pending, 0, 'no timer left');
 });
+
+test('r1: /data not writable: no login (CasaOS counts them), the status says so', async (t) => {
+  const store = memoryStore();
+  store.failSave = true;
+  const ctx = await setup(t, { store });
+  await until(ctx, () => /cannot be written/.test(statusText(ctx)), 'status', { step: 1000 });
+  assert.equal(ctx.cs.count('POST /v1/users/login'), 0);
+  store.failSave = false;
+  await until(ctx, () => ctx.app.online, 'online once writable', { step: 2000 });
+  assert.equal(ctx.cs.count('POST /v1/users/login'), 1);
+});
+
+test('r1: unknown values are never published as 0 (update flag, memory, counts)', async (t) => {
+  const ctx = await setup(t, {
+    server: {
+      utilization: {
+        cpu: { percent: 5, temperature: 0 },
+        mem: { total: 0, used: 0, usedPercent: 0 },
+        sys_disk: {},
+      },
+    },
+  });
+  for (const a of ctx.cs.apps.values()) {
+    a.status = 'unknown';
+    a.update = false;
+  }
+  await online(ctx);
+  assert.equal(stateOf(ctx, `${ctx.serverId}:cpu_usage`), 5);
+  for (const key of ['memory_usage', 'memory_used', 'apps_running', 'apps_stopped']) {
+    assert.equal(stateOf(ctx, `${ctx.serverId}:${key}`), undefined, key);
+  }
+  for (const key of ['running', 'update_available']) {
+    assert.equal(stateOf(ctx, `${ctx.appId('nextcloud')}:${key}`), undefined, key);
+  }
+});
+
+test('r1: a status published after the configuration changed is never an old one', async (t) => {
+  const ctx = await setup(t);
+  await online(ctx);
+  const sent = [];
+  const original = ctx.gladys.setConnectionStatus.bind(ctx.gladys);
+  ctx.gladys.setConnectionStatus = (c, m) => (sent.push(m?.en), original(c, m));
+  const publish = ctx.gladys.publishChangedStates.bind(ctx.gladys);
+  let changed = false;
+  ctx.gladys.publishChangedStates = async (states) => {
+    if (!changed) {
+      changed = true;
+      // The user saves another address while the states go to Gladys.
+      await ctx.app.configUpdated({ ...ctx.raw, url: 'http://127.0.0.1:1' });
+    }
+    return publish(states);
+  };
+  ctx.gladys.forgetPublishedStates();
+  ctx.app.lastReadMono = -Infinity;
+  await ctx.app.read(ctx.app.generation);
+  await until(ctx, () => /does not answer/.test(statusText(ctx)), 'new address status', {
+    step: 1000,
+  });
+  const after = sent.slice(sent.findIndex((m) => /Connecting/.test(m ?? '')));
+  assert.ok(!after.some((m) => /^Connected/.test(m ?? '')), after.join(' | '));
+});
+
+test('r1: a created device never gets a disk temperature older than the interval', async (t) => {
+  const ctx = await setup(t, { create: false, config: { poll_interval: 60 } });
+  await online(ctx);
+  const [server] = ctx.gladys.fake.discoveredDevices;
+  // 2 min later: the system was read again, the disks (every 5 min) were not.
+  await until(ctx, () => ctx.app.systemMono >= 119_000, 'third read applied', { step: 5_000 });
+  ctx.gladys.devices = [server];
+  await ctx.app.deviceCreated(server);
+  assert.equal(stateOf(ctx, `${ctx.serverId}:cpu_usage`), 12.5);
+  assert.equal(stateOf(ctx, `${ctx.serverId}:disk_sda_temperature`), undefined);
+});

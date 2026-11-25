@@ -45,9 +45,10 @@ export function parseUtilization(data) {
   const out = {
     cpuUsage: round1(within(num(cpu.percent), 0, 100)),
     cpuTemperature: temperature(cpu.temperature),
-    memoryUsage: round1(within(num(mem.usedPercent), 0, 100)),
+    // Without a total, the memory figures are not a reading (zeros by default).
+    memoryUsage: total !== null && total > 0 ? round1(within(num(mem.usedPercent), 0, 100)) : null,
     memoryUsedMb:
-      used !== null && used >= 0 && (total === null || used <= total)
+      total !== null && total > 0 && used !== null && used >= 0 && used <= total
         ? Math.round(used / 1e6)
         : null,
     diskUsage:
@@ -82,27 +83,46 @@ export function parseDisks(data) {
 }
 
 /**
- * The state of a compose app from the `status` CasaOS gives (the one of
- * Docker Compose): running, stopped (exited, created, dead) or unknown
- * (paused, restarting, removing, "unknown", missing).
+ * The state of a compose app from the `status` CasaOS gives. The list gives
+ * the state of the main container (`running`, `exited`); the route of one app
+ * gives the one of the whole Docker Compose project, one segment per state:
+ * `running(2)`, `exited(1), running(1)`, `exited(1), paused(1)`, `exited(2)`.
+ *   running  every segment running
+ *   stopped  every segment exited, created or dead
+ *   mixed    some running, the others exited, created or dead (start and stop
+ *            both apply: start aims at "running", stop at "stopped")
+ *   unknown  anything else (paused, restarting, removing, "unknown", missing)
  */
 export function appState(status) {
-  if (typeof status !== 'string') return 'unknown';
-  const s = status.trim().toLowerCase();
-  if (/^running\b/.test(s)) return 'running';
-  if (/^(exited|created|dead)\b/.test(s)) return 'stopped';
+  if (typeof status !== 'string' || status.length > 200) return 'unknown';
+  const segments = status
+    .trim()
+    .toLowerCase()
+    .split(',')
+    .map((part) => /^\s*([a-z]+)(?:\(\d{1,4}\))?\s*$/.exec(part)?.[1] ?? null);
+  if (segments.length === 0 || segments.includes(null)) return 'unknown';
+  const isStopped = (state) => state === 'exited' || state === 'created' || state === 'dead';
+  if (segments.every((state) => state === 'running')) return 'running';
+  if (segments.every(isStopped)) return 'stopped';
+  if (segments.every((state) => state === 'running' || isStopped(state))) return 'mixed';
   return 'unknown';
 }
 
-/** Every image name of an app: its services and its store information. */
+/**
+ * Every name an app shows of itself: its services (name, image, container
+ * name, host name) and the images of its store information.
+ */
 function imagesOf(app) {
   const images = [];
   const services = isObject(app?.compose?.services) ? app.compose.services : {};
-  for (const service of Object.values(services).slice(0, 50)) {
-    if (typeof service?.image === 'string') images.push(service.image);
+  for (const [name, service] of Object.entries(services).slice(0, 200)) {
+    images.push(name);
+    for (const key of ['image', 'container_name', 'hostname']) {
+      if (typeof service?.[key] === 'string') images.push(service[key]);
+    }
   }
   const apps = isObject(app?.store_info?.apps) ? app.store_info.apps : {};
-  for (const entry of Object.values(apps).slice(0, 50)) {
+  for (const entry of Object.values(apps).slice(0, 200)) {
     if (typeof entry?.image === 'string') images.push(entry.image);
   }
   return images;

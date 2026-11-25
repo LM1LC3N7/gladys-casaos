@@ -22,3 +22,13 @@ the notes of the version's GitHub Release.
   minute, across restarts; a refused password stops everything until the configuration is
   saved (6-bit mark in /data); HTTP 429 pauses every path (kept in /data).
 - "Test the connection" button; documentation in English and French.
+
+### Fixed
+
+- Review r1: the stop option and the account are checked against the configuration as soon as
+  Gladys sends it (even while a read holds the start queue); the status of a multi-service app
+  is read segment by segment (a mixed project can be started and stopped); the acknowledgement
+  never waits for the publication to Gladys; no login when /data cannot be written; no stale
+  status after a configuration change; unknown values (update flag, memory without a total,
+  counts) and stale disk temperatures never published; the Gladys app also recognized by
+  service, container and host names; `timeout-minutes` on every workflow.

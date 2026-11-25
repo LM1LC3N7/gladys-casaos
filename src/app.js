@@ -105,6 +105,12 @@ export class CasaosApp {
     this.closed = false;
     this.generation = 0;
     this.config = null;
+    /**
+     * The configuration last received from Gladys, set as soon as it arrives
+     * (outside the start queue, which a slow read may hold): the stop option
+     * and the account of a command are checked against it.
+     */
+    this.latest = null;
     this.raw = {};
     this.memory = emptyMemory();
     /** 'unknown' | 'loading' | 'loaded' | 'failed': /data is written only once read. */
@@ -145,6 +151,9 @@ export class CasaosApp {
     this.apps = null;
     this.skipped = 0;
     this.disks = null;
+    this.systemMono = null;
+    this.appsMono = null;
+    this.disksMono = null;
     this.disksDueMono = -Infinity;
     this.disksDelay = TIMINGS.disksEvery;
     this.discoveredKey = undefined;
@@ -272,11 +281,13 @@ export class CasaosApp {
     }
     if (seq !== this.connectSeq || this.closed) return;
     this.configFailures = 0;
+    this.latest = normalizeConfig(raw);
     await this.configure(raw, { force: false, reconnected: true });
   }
 
   /** The configuration saved by the user: a refusal is lifted, the account tried again. */
   configUpdated(raw) {
+    this.latest = normalizeConfig(raw);
     return this.configure(raw, { force: true, reconnected: false });
   }
 
@@ -383,6 +394,7 @@ export class CasaosApp {
 
   async shutdown() {
     this.closed = true;
+    this.latest = null;
     this.generation += 1;
     this.connectSeq += 1;
     for (const h of [this.readTimer, this.dataTimer, this.configTimer]) {
@@ -513,7 +525,9 @@ export class CasaosApp {
 
   /** A failure that stops the whole read: a refusal, a wait, a pause, an old configuration. */
   mustStop(err) {
-    return Boolean(err && (err.stale || err.refused || err.loginWait || err.status === 429));
+    return Boolean(
+      err && (err.stale || err.refused || err.loginWait || err.unwritable || err.status === 429),
+    );
   }
 
   async get(gen, path, token, { v1 = false, timeout, maxBytes } = {}) {
@@ -532,16 +546,26 @@ export class CasaosApp {
     this.online = true;
     this.retryDelay = TIMINGS.retryMin;
     this.lastOkMono = started;
-    if (system) this.system = system;
+    if (system) {
+      this.system = system;
+      this.systemMono = started;
+    }
     if (apps) {
       this.apps = apps.apps;
       this.skipped = apps.skipped;
+      this.appsMono = started;
     }
-    if (disks) this.disks = disks;
+    if (disks) {
+      this.disks = disks;
+      this.disksMono = started;
+    }
+    const gen = this.generation;
     if (systemErr) this.logger.warn(`CasaOS: system values not read (${systemErr.message})`);
     if (appsErr) this.logger.warn(`CasaOS: apps not read (${appsErr.message})`);
     await this.publishDiscovery();
     await this.publishStates(this.statesOf({ system, apps: apps?.apps ?? null, disks }));
+    // Published meanwhile: a newer configuration keeps its own status.
+    if (gen !== this.generation || this.closed) return;
     let partial = null;
     if (appsErr) partial = 'apps';
     else if (systemErr) partial = 'system';
@@ -552,10 +576,12 @@ export class CasaosApp {
     let running = 0;
     let stopped = 0;
     for (const app of this.apps?.values() ?? []) {
-      if (app.state === 'running') running += 1;
+      if (app.state === 'running' || app.state === 'mixed') running += 1;
       else if (app.state === 'stopped') stopped += 1;
     }
-    return { running, stopped };
+    // Every app between two states: the counts are unknown, not 0.
+    const known = this.apps ? running + stopped > 0 || this.apps.size === 0 : false;
+    return { running, stopped, known };
   }
 
   /** A read failed: a refusal (final), a login to wait for, a pause, or a growing retry. */
@@ -564,6 +590,11 @@ export class CasaosApp {
     this.online = false;
     if (err?.refused) {
       await this.setStatus(false, T.status.refused);
+      return;
+    }
+    if (err?.unwritable) {
+      await this.setStatus(false, T.status.dataUnwritable);
+      this.scheduleRead(TIMINGS.dataRetry);
       return;
     }
     if (err?.loginWait) {
@@ -647,8 +678,13 @@ export class CasaosApp {
     if (since < TIMINGS.loginSpacing) throw new LoginWait(TIMINGS.loginSpacing - since);
     this.lastLoginMono = this.mono();
     this.memory.lastLoginAt = this.now();
-    // Kept before the login is sent: a restart never logs in again within a minute.
-    await this.save();
+    // Kept before the login is sent: a restart never logs in again within a
+    // minute. Not written: no login (CasaOS counts them for all its clients).
+    if (!(await this.save())) {
+      const err = new Error('state file not writable');
+      err.unwritable = true;
+      throw err;
+    }
     if (gen !== this.generation) throw new Stale();
     const res = await this.request(c.address, {
       method: 'POST',
@@ -780,9 +816,11 @@ export class CasaosApp {
         push(main, ids.feature(FEATURES.DISK_FREE), system.diskFreeGb);
       }
       if (apps) {
-        const { running, stopped } = this.counts();
-        push(main, ids.feature(FEATURES.APPS_RUNNING), running);
-        push(main, ids.feature(FEATURES.APPS_STOPPED), stopped);
+        const { running, stopped, known } = this.counts();
+        if (known) {
+          push(main, ids.feature(FEATURES.APPS_RUNNING), running);
+          push(main, ids.feature(FEATURES.APPS_STOPPED), stopped);
+        }
       }
       for (const disk of disks ?? []) {
         push(main, ids.feature(diskTemperatureKey(disk.name)), disk.temperature);
@@ -795,9 +833,11 @@ export class CasaosApp {
         // An app gone from the list (uninstalled) does not run.
         if (!app) push(main, ids.feature(FEATURES.RUNNING), 0);
         else if (app.state !== 'unknown') {
-          push(main, ids.feature(FEATURES.RUNNING), app.state === 'running' ? 1 : 0);
+          push(main, ids.feature(FEATURES.RUNNING), app.state === 'stopped' ? 0 : 1);
         }
-        if (app?.updateAvailable !== null && app?.updateAvailable !== undefined) {
+        // CasaOS answers `false` when it could not read the app (status
+        // "unknown"): the flag only with a known state.
+        if (app && app.state !== 'unknown' && app.updateAvailable !== null) {
           push(optional, ids.feature(FEATURES.UPDATE_AVAILABLE), app.updateAvailable ? 1 : 0);
         }
       }
@@ -827,10 +867,15 @@ export class CasaosApp {
     const parsed = parseExternalId(this.gladys, device?.external_id);
     if (!parsed || parsed.feature !== null) return;
     await this.publishDiscovery();
-    const fresh = this.lastOkMono !== null && this.mono() - this.lastOkMono < this.config.pollMs;
-    if (!fresh || !this.online) return;
+    if (!this.online) return;
+    // Each value only when its own read is younger than the interval.
+    const fresh = (at) => at !== null && this.mono() - at < this.config.pollMs;
     await this.publishStates(
-      this.statesOf({ system: this.system, apps: this.apps, disks: this.disks }),
+      this.statesOf({
+        system: fresh(this.systemMono) ? this.system : null,
+        apps: fresh(this.appsMono) ? this.apps : null,
+        disks: fresh(this.disksMono) ? this.disks : null,
+      }),
     );
   }
 
@@ -864,9 +909,12 @@ export class CasaosApp {
     const gen = this.generation;
     const check = () => {
       if (gen !== this.generation || this.closed) throw new Error(T.errors.configChanged);
-      if (key === FEATURES.STOP && this.config?.allowStop !== true) {
+      // The configuration as Gladys last sent it, even while the start
+      // queue has not applied it yet.
+      if (key === FEATURES.STOP && this.latest?.allowStop !== true) {
         throw new Error(T.errors.stopDisabled);
       }
+      if (!sameAccount(this.latest, this.config)) throw new Error(T.errors.configChanged);
       if (this.blocked) throw new Error(T.errors.refused);
       if (this.paused()) throw new Error(T.errors.paused);
     };
@@ -906,7 +954,7 @@ export class CasaosApp {
       return new Error(T.errors.paused);
     }
     if (err?.refused) return new Error(T.errors.refused);
-    if (err?.loginWait || err?.stale) return new Error(T.errors.notConnected);
+    if (err?.loginWait || err?.stale || err?.unwritable) return new Error(T.errors.notConnected);
     if (err instanceof CasaosError) return new Error(T.errors.notRead(reasonOf(err).en));
     return err instanceof Error ? err : new Error(T.errors.notConnected);
   }
@@ -931,8 +979,9 @@ export class CasaosApp {
     if (before.state === 'unknown') throw new Error(T.errors.unknownState(before.status));
     this.noteApp(before);
     if (before.state === target) {
-      // Already so, on a fresh read: nothing to send.
-      await this.publishRunning(appId);
+      // Already so, on a fresh read: nothing to send. The ack never waits
+      // for the publication to Gladys (it may be slow: Gladys cuts at 5 s).
+      void this.publishRunning(appId);
       return;
     }
     check();
@@ -977,7 +1026,7 @@ export class CasaosApp {
     if (res.status >= 500) {
       // CasaOS answered an error: what it did is read again.
       this.followUp(gen, appId, target);
-      throw new Error(T.errors.rejected(`HTTP ${res.status}`));
+      throw new Error(T.errors.serverError(`HTTP ${res.status}`));
     }
     if (res.status !== 200) {
       if (res.status === 401 && this.session === session)
@@ -997,7 +1046,7 @@ export class CasaosApp {
       }
       if (now?.state === target) {
         this.noteApp(now);
-        await this.publishRunning(appId);
+        void this.publishRunning(appId);
         this.logger.info(`CasaOS: ${key} of ${appId} confirmed`);
         return;
       }
@@ -1016,13 +1065,14 @@ export class CasaosApp {
   async publishRunning(appId) {
     const app = this.apps?.get(appId);
     if (!app || app.state === 'unknown') return;
+    const running = app.state === 'stopped' ? 0 : 1;
     const created = createdDevices(this.gladys).apps.some((a) => a.id === appId);
     if (!created) return;
     await this.publishStates({
       main: [
         {
           device_feature_external_id: appIds(this.gladys, appId).feature(FEATURES.RUNNING),
-          state: app.state === 'running' ? 1 : 0,
+          state: running,
         },
       ],
       optional: [],

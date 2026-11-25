@@ -326,3 +326,37 @@ test('real answers: utilization, disks and the apps read as expected', async () 
   );
   assert.equal(stopped.apps.get('whoami').state, 'stopped');
 });
+
+test('r1: the real compose project statuses (fixture), segment by segment', async () => {
+  const { statuses } = await fixture('compose-statuses');
+  for (const [status, state] of Object.entries(statuses)) {
+    assert.equal(appState(status), state, status);
+  }
+  for (const s of ['running(2), ', 'running(x)', 'Running(1);exited(1)', 'x'.repeat(300)]) {
+    assert.equal(appState(s), 'unknown', s);
+  }
+});
+
+test('r1: the Gladys app found by service name, container name or host name too', () => {
+  const as = (services) => parseApps({ home: { status: 'running', compose: { services } } });
+  assert.equal(as({ gladys: { image: 'registry.lan/mirror/ga' } }).apps.get('home').gladys, true);
+  assert.equal(
+    as({ web: { image: 'x@sha256:ab', container_name: 'Gladys' } }).apps.get('home').gladys,
+    true,
+  );
+  assert.equal(as({ web: { image: 'x', hostname: 'gladys-main' } }).apps.get('home').gladys, true);
+  assert.equal(
+    as({ web: { image: 'nginx', container_name: 'web' } }).apps.get('home').gladys,
+    false,
+  );
+});
+
+test('r1: every request asks for JSON (CasaOS answers YAML otherwise)', async (t) => {
+  let accept;
+  const address = await server(t, (req, res) => {
+    accept = req.headers.accept;
+    res.end('{}');
+  });
+  await httpRequest(address, { path: '/' });
+  assert.equal(accept, 'application/json');
+});

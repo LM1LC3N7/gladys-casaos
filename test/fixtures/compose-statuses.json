@@ -1,0 +1,12 @@
+{
+  "source": "docker compose ls of a real 2-service project (review r1, 2026-11-25), the status CasaOS gives on /v2/app_management/compose/{id}",
+  "statuses": {
+    "running(2)": "running",
+    "exited(1), running(1)": "mixed",
+    "created(1), running(1)": "mixed",
+    "exited(1), paused(1)": "unknown",
+    "exited(2)": "stopped",
+    "running": "running",
+    "exited": "stopped"
+  }
+}

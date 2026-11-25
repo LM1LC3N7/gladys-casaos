@@ -77,6 +77,10 @@ export const T = {
       'The state file of the integration (/data) cannot be read: tried again every 10 s.',
       "Le fichier d'état de l'intégration (/data) est illisible : relu toutes les 10 s.",
     ),
+    dataUnwritable: both(
+      'The state file of the integration (/data) cannot be written: no login to CasaOS until it can (tried again every 10 s).',
+      "Le fichier d'état de l'intégration (/data) ne peut pas être écrit : pas de connexion à CasaOS tant qu'il ne peut pas l'être (réessai toutes les 10 s).",
+    ),
     connecting: both('Connecting to CasaOS...', 'Connexion à CasaOS...'),
     paused: (ms) =>
       both(
@@ -143,6 +147,8 @@ export const T = {
     tooLate: 'No time left to send the command within the delay of Gladys. Nothing sent',
     configChanged: 'The configuration changed meanwhile. Nothing sent',
     rejected: (reason) => `CasaOS refused the command (${reason}). Nothing done`,
+    serverError: (reason) =>
+      `CasaOS answered an error (${reason}): it may have done part of it; the state of the app is read again in 5 and 20 s`,
     notSent: (reason) => `The command could not be sent (${reason}). Nothing sent`,
     unconfirmed:
       'Sent to CasaOS, without confirmation yet: the state of the app follows (read again in 5 and 20 s)',
